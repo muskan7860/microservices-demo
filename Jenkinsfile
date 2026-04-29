@@ -6,13 +6,6 @@ pipeline {
     }
 
     stages {
-
-        stage('Clone Code') {
-            steps {
-                git 'https://github.com/muskan7860/microservices-demo.git'
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t $DOCKER_IMAGE .'
