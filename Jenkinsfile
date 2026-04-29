@@ -2,25 +2,36 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "muskanpatel71198/microservices-app:v1"
+        PROJECT = "microservices-demo"
+        IMAGE = "muskanpatel71198/microservices-app:v1"
+        REGISTRY = "docker.io"
     }
 
     stages {
-        stage('Build Docker Image') {
+
+        stage('Checkout Code') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                checkout scm
             }
         }
 
-        stage('Docker Login & Push') {
+        stage('Build & Push Image (Kaniko)') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASS')]) {
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS')]) {
 
                     sh '''
-                        echo $PASS | docker login -u $USER --password-stdin
-                        docker push $DOCKER_IMAGE
+                    echo "Creating Docker config for Kaniko"
+
+                    mkdir -p /kaniko/.docker
+
+                    echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"username\":\"$DOCKER_USER\",\"password\":\"$DOCKER_PASS\"}}}" > /kaniko/.docker/config.json
+
+                    /kaniko/executor \
+                        --context `pwd` \
+                        --dockerfile Dockerfile \
+                        --destination $IMAGE
                     '''
                 }
             }
@@ -28,14 +39,17 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh 'kubectl apply -f release/kubernetes-manifests.yaml'
+                sh '''
+                kubectl apply -f release/kubernetes-manifests.yaml
+                kubectl rollout status deployment frontend -n dev
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "🚀 Pipeline Success! App deployed"
+            echo "✅ Pipeline Success! CI/CD Completed"
         }
         failure {
             echo "❌ Pipeline Failed! Check logs"
