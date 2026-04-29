@@ -1,58 +1,56 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:latest
+    command:
+    - cat
+    tty: true
+"""
+        }
+    }
 
     environment {
-        PROJECT = "microservices-demo"
         IMAGE = "muskanpatel71198/microservices-app:v1"
-        REGISTRY = "docker.io"
     }
 
     stages {
 
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build & Push Image (Kaniko)') {
+        stage('Build & Push Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS')]) {
+                container('kaniko') {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'USER',
+                        passwordVariable: 'PASS')]) {
 
-                    sh '''
-                    echo "Creating Docker config for Kaniko"
+                        sh '''
+                        echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"username\":\"$USER\",\"password\":\"$PASS\"}}}" > /kaniko/.docker/config.json
 
-                    mkdir -p /kaniko/.docker
-
-                    echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"username\":\"$DOCKER_USER\",\"password\":\"$DOCKER_PASS\"}}}" > /kaniko/.docker/config.json
-
-                    /kaniko/executor \
-                        --context `pwd` \
-                        --dockerfile Dockerfile \
-                        --destination $IMAGE
-                    '''
+                        /kaniko/executor \
+                          --context $WORKSPACE \
+                          --dockerfile Dockerfile \
+                          --destination $IMAGE
+                        '''
+                    }
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Deploy') {
             steps {
-                sh '''
-                kubectl apply -f release/kubernetes-manifests.yaml
-                kubectl rollout status deployment frontend -n dev
-                '''
+                sh 'kubectl apply -f release/kubernetes-manifests.yaml'
             }
-        }
-    }
-
-    post {
-        success {
-            echo "✅ Pipeline Success! CI/CD Completed"
-        }
-        failure {
-            echo "❌ Pipeline Failed! Check logs"
         }
     }
 }
