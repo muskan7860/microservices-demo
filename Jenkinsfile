@@ -1,19 +1,5 @@
 pipeline {
-    agent {
-        kubernetes {
-            yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:latest
-    command:
-    - cat
-    tty: true
-"""
-        }
-    }
+    agent any
 
     environment {
         IMAGE = "muskanpatel71198/microservices-app:v1"
@@ -27,27 +13,27 @@ spec:
             }
         }
 
-        stage('Build & Push Image') {
+        stage('Build Docker Image') {
             steps {
-                container('kaniko') {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'USER',
-                        passwordVariable: 'PASS')]) {
+                sh 'docker build -t $IMAGE .'
+            }
+        }
 
-                        sh '''
-                        echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"username\":\"$USER\",\"password\":\"$PASS\"}}}" > /kaniko/.docker/config.json
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'USER',
+                    passwordVariable: 'PASS')]) {
 
-                        /kaniko/executor \
-                          --context $WORKSPACE \
-                          --dockerfile Dockerfile \
-                          --destination $IMAGE
-                        '''
-                    }
+                    sh '''
+                    echo $PASS | docker login -u $USER --password-stdin
+                    docker push $IMAGE
+                    '''
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy to Kubernetes') {
             steps {
                 sh 'kubectl apply -f release/kubernetes-manifests.yaml'
             }
