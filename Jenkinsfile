@@ -2,40 +2,186 @@ pipeline {
     agent any
 
     environment {
-        IMAGE = "muskanpatel71198/microservices-app:v1"
+        DOCKERHUB_REPO = "muskanpatel71198"
+        IMAGE_TAG = "v${BUILD_NUMBER}"
+        SONARQUBE_SERVER = "sonarqube-server"
+        SONAR_TOKEN = credentials('sonarqube-token')
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                checkout scm
+                git branch: 'main', url: 'https://github.com/muskan7860/microservices-demo.git'
             }
         }
 
-        stage('Build Docker Image') {
+        // -----------------------------
+        // SONARQUBE SCAN
+        // -----------------------------
+        stage('SonarQube Analysis') {
             steps {
-                sh 'docker build -t $IMAGE ./src/frontend'
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASS')]) {
-
-                    sh '''
-                    echo $PASS | docker login -u $USER --password-stdin
-                    docker push $IMAGE
-                    '''
+                withSonarQubeEnv("${SONARQUBE_SERVER}") {
+                    sh """
+                    sonar-scanner \
+                    -Dsonar.projectKey=microservices-app \
+                    -Dsonar.sources=src \
+                    -Dsonar.host.url=http://192.168.0.101/:9000
+                    -Dsonar.login=${SONAR_TOKEN}
+                    """
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        // -----------------------------
+        // OWASP DEPENDENCY CHECK
+        // -----------------------------
+        stage('OWASP Dependency Check') {
             steps {
-                sh 'kubectl apply -f release/kubernetes-manifests.yaml'
+                dependencyCheck additionalArguments: '--scan ./src', odcInstallation: 'dependency-check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+
+        // -----------------------------
+        // TRIVY FILE SYSTEM SCAN
+        // -----------------------------
+        stage('Trivy FS Scan') {
+            steps {
+                sh 'trivy fs --severity HIGH,CRITICAL ./src'
+            }
+        }
+
+        // -----------------------------
+        // BUILD ALL DOCKER IMAGES
+        // -----------------------------
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    def services = [
+                        "frontend",
+                        "cartservice",
+                        "productcatalogservice",
+                        "paymentservice",
+                        "shippingservice",
+                        "currencyservice",
+                        "emailservice",
+                        "recommendationservice",
+                        "checkoutservice",
+                        "adservice"
+                    ]
+
+                    for (service in services) {
+                        sh """
+                        docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ./src/${service}
+                        """
+                    }
+                }
+            }
+        }
+
+        // -----------------------------
+        // TRIVY IMAGE SCAN
+        // -----------------------------
+        stage('Trivy Image Scan') {
+            steps {
+                script {
+                    def services = [
+                        "frontend",
+                        "cartservice",
+                        "productcatalogservice",
+                        "paymentservice",
+                        "shippingservice",
+                        "currencyservice",
+                        "emailservice",
+                        "recommendationservice",
+                        "checkoutservice",
+                        "adservice"
+                    ]
+
+                    for (service in services) {
+                        sh """
+                        trivy image --severity HIGH,CRITICAL ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}
+                        """
+                    }
+                }
+            }
+        }
+
+        // -----------------------------
+        // PUSH TO DOCKERHUB
+        // -----------------------------
+        stage('Push Images') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh "echo $PASS | docker login -u $USER --password-stdin"
+
+                    script {
+                        def services = [
+                            "frontend",
+                            "cartservice",
+                            "productcatalogservice",
+                            "paymentservice",
+                            "shippingservice",
+                            "currencyservice",
+                            "emailservice",
+                            "recommendationservice",
+                            "checkoutservice",
+                            "adservice"
+                        ]
+
+                        for (service in services) {
+                            sh "docker push ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}"
+                        }
+                    }
+                }
+            }
+        }
+
+        // -----------------------------
+        // UPDATE K8s YAML (FOR ARGOCD)
+        // -----------------------------
+        stage('Update Kubernetes Manifests') {
+            steps {
+                script {
+                    def services = [
+                        "frontend",
+                        "cartservice",
+                        "productcatalogservice",
+                        "paymentservice",
+                        "shippingservice",
+                        "currencyservice",
+                        "emailservice",
+                        "recommendationservice",
+                        "checkoutservice",
+                        "adservice"
+                    ]
+
+                    for (service in services) {
+                        sh """
+                        sed -i 's|image: .*${service}:.*|image: ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}|g' kubernetes-manifests/${service}.yaml
+                        """
+                    }
+                }
+            }
+        }
+
+        // -----------------------------
+        // PUSH UPDATED YAML TO GITHUB
+        // -----------------------------
+        stage('Push Manifest Changes') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'github-id', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh """
+                    git config user.name "muskan7860"
+                    git config user.email "muskanpatel914@gmail.com"
+
+                    git add .
+                    git commit -m "Updated image tags to ${IMAGE_TAG}" || echo "No changes"
+
+                    git push https://${USER}:${PASS}@github.com/muskan7860/microservices-demo.git main
+                    """
+                }
             }
         }
     }
