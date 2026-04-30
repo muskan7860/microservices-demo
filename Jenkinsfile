@@ -4,7 +4,7 @@ pipeline {
     environment {
         DOCKERHUB_REPO = "muskanpatel71198"
         IMAGE_TAG = "v${BUILD_NUMBER}"
-        SONARQUBE_SERVER = "sonarqube-server"
+        SONARQUBE_SERVER = "sonarqube"
         SONAR_TOKEN = credentials('sonar-token')
     }
 
