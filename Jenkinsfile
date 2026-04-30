@@ -5,7 +5,7 @@ pipeline {
         DOCKERHUB_REPO = "muskanpatel71198"
         IMAGE_TAG = "v${BUILD_NUMBER}"
         SONARQUBE_SERVER = "sonarqube"
-        SONAR_TOKEN = credentials('sonar-token')
+        SONAR_TOKEN = credentials('SONAR_TOKEN')
     }
 
     stages {
@@ -26,7 +26,7 @@ pipeline {
                     sonar-scanner \
                     -Dsonar.projectKey=microservices-app \
                     -Dsonar.sources=src \
-                    -Dsonar.host.url=http://192.168.0.101/:9000
+                    -Dsonar.host.url=http://192.168.0.101:9000
                     -Dsonar.login=${SONAR_TOKEN}
                     """
                 }
