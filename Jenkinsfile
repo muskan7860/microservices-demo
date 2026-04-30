@@ -38,11 +38,13 @@ pipeline {
         // OWASP DEPENDENCY CHECK
         // -----------------------------
         stage('OWASP Dependency Check') {
-            steps {
-                dependencyCheck additionalArguments: '--scan ./src', odcInstallation: 'dependency-check'
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-            }
+          steps {
+            script {
+              dependencyCheck additionalArguments: '--scan ./src --format XML', odcInstallation: 'dependency-check'
         }
+        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+    }
+}
 
         // -----------------------------
         // TRIVY FILE SYSTEM SCAN
