@@ -20,18 +20,19 @@ pipeline {
         // SONARQUBE SCAN
         // -----------------------------
         stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv("${SONARQUBE_SERVER}") {
-                    sh """
-                    sonar-scanner \
-                    -Dsonar.projectKey=microservices-app \
-                    -Dsonar.sources=src \
-                    -Dsonar.host.url=http://192.168.0.101:9000
-                    -Dsonar.login=${SONAR_TOKEN}
-                    """
-                }
-            }
+          steps {
+            withSonarQubeEnv("${SONARQUBE_SERVER}") {
+              sh """
+              sonar-scanner \
+              -Dsonar.projectKey=microservices-app \
+              -Dsonar.sources=. \
+              -Dsonar.host.url=http://192.168.0.101:9000 \
+              -Dsonar.login=$SONAR_TOKEN \
+              -Dsonar.exclusions=**/*.java
+              """
         }
+    }
+}
 
         // -----------------------------
         // OWASP DEPENDENCY CHECK
