@@ -5,7 +5,7 @@ pipeline {
         DOCKERHUB_REPO = "muskanpatel71198"
         IMAGE_TAG = "v${BUILD_NUMBER}"
         SONARQUBE_SERVER = "sonarqube-server"
-        SONAR_TOKEN = credentials('sonarqube-token')
+        SONAR_TOKEN = credentials('sonar-token')
     }
 
     stages {
