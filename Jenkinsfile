@@ -39,8 +39,10 @@ pipeline {
         // -----------------------------
         stage('OWASP Dependency Check') {
           steps {
-            dependencyCheck additionalArguments: '--scan .', odcInstallation: 'dependency-check'
-            dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_KEY')]) {
+              dependencyCheck additionalArguments: "--scan . --nvdApiKey ${NVD_KEY}", odcInstallation: 'dependency-check'
+        }
+        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
     }
 }
         // -----------------------------
