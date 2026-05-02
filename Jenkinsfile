@@ -15,9 +15,6 @@ pipeline {
             }
         }
 
-        // -----------------------------
-        // SONARQUBE SCAN
-        // -----------------------------
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONARQUBE_SERVER}") {
@@ -33,9 +30,6 @@ pipeline {
             }
         }
 
-        // -----------------------------
-        // OWASP DEPENDENCY CHECK
-        // -----------------------------
         stage('OWASP Dependency Check') {
             steps {
                 dependencyCheck additionalArguments: '--scan . --noupdate', odcInstallation: 'dependency-check'
@@ -43,9 +37,6 @@ pipeline {
             }
         }
 
-        // -----------------------------
-        // TRIVY FILE SYSTEM SCAN
-        // -----------------------------
         stage('Trivy FS Scan') {
             steps {
                 sh 'trivy fs --severity HIGH,CRITICAL ./src'
@@ -58,10 +49,9 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 script {
-                    // ✅ Use consistent service names (NO slashes)
                     def services = [
                         "frontend",
-                        "cartservice",           // ✅ Fixed: was "cartservice/src"
+                        "cartservice",
                         "productcatalogservice",
                         "paymentservice",
                         "shippingservice",
@@ -73,16 +63,16 @@ pipeline {
                     ]
 
                     for (service in services) {
-                        // ✅ Special context for cartservice only
                         def context = (service == "cartservice") 
                             ? "./src/cartservice/src" 
                             : "./src/${service}"
 
+                        // ✅ Groovy comments OUTSIDE sh block = OK
                         sh """
                         echo "🔨 Building ${service} from context: ${context}"
                         docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ${context}
                         
-                        // ✅ Verify image was created
+                        # ✅ Shell comments INSIDE sh block = use #
                         echo "📋 Verifying image exists:"
                         docker images | grep ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} || echo "⚠️ Image not found locally!"
                         """
@@ -97,7 +87,6 @@ pipeline {
         stage('Trivy Image Scan') {
             steps {
                 script {
-                    // ✅ Same service list as build stage
                     def services = [
                         "frontend",
                         "cartservice",
@@ -114,7 +103,6 @@ pipeline {
                     for (service in services) {
                         sh """
                         echo "🔍 Scanning ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}"
-                        // ✅ Add --offline-scan to force local scan, avoid remote lookup
                         trivy image --severity HIGH,CRITICAL --offline-scan ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}
                         """
                     }
@@ -153,7 +141,7 @@ pipeline {
         }
 
         // -----------------------------
-        // UPDATE K8s YAML (FOR ARGOCD)
+        // UPDATE K8s YAML
         // -----------------------------
         stage('Update Kubernetes Manifests') {
             steps {
