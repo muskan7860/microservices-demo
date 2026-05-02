@@ -9,7 +9,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout Code') {
             steps {
                 git branch: 'main', url: 'https://github.com/muskan7860/microservices-demo.git'
@@ -20,29 +19,30 @@ pipeline {
         // SONARQUBE SCAN
         // -----------------------------
         stage('SonarQube Analysis') {
-          steps {
-            withSonarQubeEnv("${SONARQUBE_SERVER}") {
-              sh """
-              sonar-scanner \
-              -Dsonar.projectKey=microservices-app \
-              -Dsonar.sources=. \
-              -Dsonar.host.url=http://192.168.0.101:9000 \
-              -Dsonar.login=$SONAR_TOKEN \
-              -Dsonar.exclusions=**/*.java
-              """
+            steps {
+                withSonarQubeEnv("${SONARQUBE_SERVER}") {
+                    sh """
+                    sonar-scanner \
+                    -Dsonar.projectKey=microservices-app \
+                    -Dsonar.sources=. \
+                    -Dsonar.host.url=http://192.168.0.101:9000 \
+                    -Dsonar.login=$SONAR_TOKEN \
+                    -Dsonar.exclusions=**/*.java
+                    """
+                }
+            }
         }
-    }
-}
 
         // -----------------------------
         // OWASP DEPENDENCY CHECK
         // -----------------------------
         stage('OWASP Dependency Check') {
-          steps {
-            dependencyCheck additionalArguments: '--scan . --noupdate', odcInstallation: 'dependency-check'
-            dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-    }
-}
+            steps {
+                dependencyCheck additionalArguments: '--scan . --noupdate', odcInstallation: 'dependency-check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+
         // -----------------------------
         // TRIVY FILE SYSTEM SCAN
         // -----------------------------
@@ -58,9 +58,10 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 script {
+                    // ✅ Use consistent service names (NO slashes)
                     def services = [
                         "frontend",
-                        "cartservice/src",
+                        "cartservice",           // ✅ Fixed: was "cartservice/src"
                         "productcatalogservice",
                         "paymentservice",
                         "shippingservice",
@@ -71,15 +72,20 @@ pipeline {
                         "adservice"
                     ]
 
-                    for (service in services) {  
-                      def context = service == "cartservice/src" ? "./src/cartservice/src" : "./src/${service}"
-                      def imageName = service.contains("cartservice") ? "cartservice" : service
+                    for (service in services) {
+                        // ✅ Special context for cartservice only
+                        def context = (service == "cartservice") 
+                            ? "./src/cartservice/src" 
+                            : "./src/${service}"
 
-                      sh """
-                      echo "Building ${imageName} from ${context}"
-                      docker build -t ${DOCKERHUB_REPO}/${imageName}:${IMAGE_TAG} ${context}
-                      """
-}
+                        sh """
+                        echo "🔨 Building ${service} from context: ${context}"
+                        docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ${context}
+                        
+                        // ✅ Verify image was created
+                        echo "📋 Verifying image exists:"
+                        docker images | grep ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} || echo "⚠️ Image not found locally!"
+                        """
                     }
                 }
             }
@@ -91,6 +97,7 @@ pipeline {
         stage('Trivy Image Scan') {
             steps {
                 script {
+                    // ✅ Same service list as build stage
                     def services = [
                         "frontend",
                         "cartservice",
@@ -106,7 +113,9 @@ pipeline {
 
                     for (service in services) {
                         sh """
-                        trivy image --severity HIGH,CRITICAL ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}
+                        echo "🔍 Scanning ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}"
+                        // ✅ Add --offline-scan to force local scan, avoid remote lookup
+                        trivy image --severity HIGH,CRITICAL --offline-scan ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}
                         """
                     }
                 }
@@ -119,7 +128,7 @@ pipeline {
         stage('Push Images') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh "echo $PASS | docker login -u $USER --password-stdin"
+                    sh "echo \$PASS | docker login -u \$USER --password-stdin"
 
                     script {
                         def services = [
@@ -184,7 +193,7 @@ pipeline {
                     git add .
                     git commit -m "Updated image tags to ${IMAGE_TAG}" || echo "No changes"
 
-                    git push https://${USER}:${PASS}@github.com/muskan7860/microservices-demo.git main
+                    git push https://\${USER}:\${PASS}@github.com/muskan7860/microservices-demo.git main
                     """
                 }
             }
