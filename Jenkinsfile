@@ -74,7 +74,7 @@ pipeline {
                     for (service in services) {
                         def context = service == "cartservice" ? "./src/cartservice/src" : "./src/${service}"
                         sh """
-                        docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ./src/${service}
+                        docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ${context}
                         """
                     }
                 }
