@@ -2,51 +2,52 @@ pipeline {
     agent any
 
     options {
-        // ⏱️ Prevent pipeline from hanging indefinitely
         timeout(time: 2, unit: 'HOURS')
-        // 🗑️ Clean up workspace after build to save disk
         disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
     environment {
-        DOCKERHUB_REPO = "muskanpatel71198"
+        DOCKERHUB_REPO = 'muskanpatel71198'
         IMAGE_TAG = "v${BUILD_NUMBER}"
-        SONARQUBE_SERVER = "sonarqube"
+        SONARQUBE_SERVER = 'sonarqube'
         SONAR_TOKEN = credentials('SONAR_TOKEN')
-        // 🎯 Only scan these critical services with Trivy (skip low-risk ones)
-        TRIVY_CRITICAL_SERVICES = [
-            "cartservice",      // .NET app - needs scanning
-            "paymentservice",   // Security-critical
-            "frontend"          // User-facing
-        ]
-        // 📦 All services to build & push (kept minimal)
-        ALL_SERVICES = [
-            "frontend", "cartservice", "productcatalogservice",
-            "paymentservice", "shippingservice", "currencyservice",
-            "emailservice", "recommendationservice", "checkoutservice", "adservice"
-        ]
+        // ✅ Strings only in environment block
+        TRIVY_CACHE_DIR = '/tmp/trivy-cache'
+        SKIP_DOCS_DIRS = '/usr/share/doc,/usr/share/man,/usr/share/locale,/usr/local/share'
+    }
+
+    parameters {
+        // ✅ Use parameters for configurable lists
+        choice(
+            name: 'TRIVY_SERVICES',
+            choices: ['critical', 'all', 'none'],
+            description: 'Which services to scan with Trivy?'
+        )
+        booleanParam(name: 'RUN_SONAR', defaultValue: true, description: 'Run SonarQube?')
+        booleanParam(name: 'SKIP_PUSH', defaultValue: false, description: 'Skip Docker push?')
     }
 
     stages {
         // -----------------------------
-        // 1. CHECKOUT (Fast)
+        // 1. CHECKOUT (Fast shallow clone)
         // -----------------------------
         stage('Checkout Code') {
             steps {
                 checkout scm: [
                     $class: 'GitSCM',
                     branches: [[name: 'main']],
-                    extensions: [[$class: 'CloneOption', depth: 1, noTags: true, shallow: true]], // ⚡ Shallow clone
+                    extensions: [[$class: 'CloneOption', depth: 1, noTags: true, shallow: true]],
                     url: 'https://github.com/muskan7860/microservices-demo.git'
                 ]
             }
         }
 
         // -----------------------------
-        // 2. SONARQUBE (Optional - skip if not needed)
+        // 2. SONARQUBE (Optional)
         // -----------------------------
         stage('SonarQube Analysis') {
-            when { expression { params.RUN_SONAR ?: true } } // 🔀 Toggle via parameter
+            when { expression { params.RUN_SONAR } }
             steps {
                 withSonarQubeEnv("${SONARQUBE_SERVER}") {
                     sh """
@@ -64,61 +65,65 @@ pipeline {
         }
 
         // -----------------------------
-        // 3. BUILD DOCKER IMAGES (Parallelized)
+        // 3. BUILD DOCKER IMAGES
         // -----------------------------
         stage('Build Docker Images') {
-            parallel {
-                stage('Build Critical Services') {
-                    steps {
-                        script {
-                            // Build only services that changed (optional optimization)
-                            for (service in env.TRIVY_CRITICAL_SERVICES.tokenize(',')) {
-                                def context = (service == "cartservice") 
-                                    ? "./src/cartservice/src" 
-                                    : "./src/${service}"
-                                
-                                sh """
-                                echo "🔨 Building ${service}..."
-                                docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ${context}
-                                """
-                            }
-                        }
+            steps {
+                script {
+                    // ✅ Define arrays in script block (not environment)
+                    def allServices = [
+                        'frontend', 'cartservice', 'productcatalogservice',
+                        'paymentservice', 'shippingservice', 'currencyservice',
+                        'emailservice', 'recommendationservice', 'checkoutservice', 'adservice'
+                    ]
+                    
+                    def criticalServices = ['cartservice', 'paymentservice', 'frontend']
+                    
+                    // Build all services
+                    for (service in allServices) {
+                        def context = (service == 'cartservice') 
+                            ? './src/cartservice/src' 
+                            : "./src/${service}"
+                        
+                        sh """
+                        echo "🔨 Building ${service}..."
+                        docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ${context}
+                        """
                     }
-                }
-                stage('Build Other Services') {
-                    steps {
-                        script {
-                            def otherServices = env.ALL_SERVICES.tokenize(',') - env.TRIVY_CRITICAL_SERVICES.tokenize(',')
-                            for (service in otherServices) {
-                                def context = "./src/${service}"
-                                sh """
-                                echo "🔨 Building ${service}..."
-                                docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ${context}
-                                """
-                            }
-                        }
-                    }
+                    
+                    // Store for later stages
+                    env.ALL_SERVICES_LIST = allServices.join(',')
+                    env.CRITICAL_SERVICES_LIST = criticalServices.join(',')
                 }
             }
         }
 
         // -----------------------------
-        // 4. TRIVY SCAN (Only Critical Services + Optimized)
+        // 4. TRIVY SCAN (Only what's needed)
         // -----------------------------
         stage('Trivy Security Scan') {
+            when { expression { params.TRIVY_SERVICES != 'none' } }
             steps {
                 script {
-                    // ✅ Pre-cache DBs once (not per-service)
-                    sh '''
-                    echo "📦 Ensuring Trivy DBs are cached..."
-                    trivy image --download-db-only --cache-dir /tmp/trivy-cache || true
-                    trivy image --download-java-db-only --cache-dir /tmp/trivy-cache || true
-                    '''
-
-                    // ✅ Scan ONLY critical services with optimized flags
-                    for (service in env.TRIVY_CRITICAL_SERVICES.tokenize(',')) {
+                    def criticalServices = ['cartservice', 'paymentservice', 'frontend']
+                    def allServices = env.ALL_SERVICES_LIST?.split(',') ?: []
+                    
+                    // Determine which services to scan
+                    def servicesToScan = (params.TRIVY_SERVICES == 'critical') 
+                        ? criticalServices 
+                        : (params.TRIVY_SERVICES == 'all' ? allServices : criticalServices)
+                    
+                    // Pre-cache Trivy DBs once
+                    sh """
+                    mkdir -p ${TRIVY_CACHE_DIR}
+                    trivy image --download-db-only --cache-dir ${TRIVY_CACHE_DIR} || true
+                    trivy image --download-java-db-only --cache-dir ${TRIVY_CACHE_DIR} || true
+                    """
+                    
+                    // Scan selected services
+                    for (service in servicesToScan) {
                         sh """
-                        echo "🔍 Scanning ${service} (HIGH/CRITICAL only)..."
+                        echo "🔍 Scanning ${service} (HIGH/CRITICAL)..."
                         
                         trivy image \\
                             --severity HIGH,CRITICAL \\
@@ -126,8 +131,8 @@ pipeline {
                             --scanners vuln \\
                             --timeout 30m \\
                             --parallel 1 \\
-                            --cache-dir /tmp/trivy-cache \\
-                            --skip-dirs /usr/share/doc,/usr/share/man,/usr/share/locale,/usr/local/share \\
+                            --cache-dir ${TRIVY_CACHE_DIR} \\
+                            --skip-dirs '${SKIP_DOCS_DIRS}' \\
                             --exit-code 1 \\
                             ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}
                             
@@ -139,15 +144,17 @@ pipeline {
         }
 
         // -----------------------------
-        // 5. PUSH IMAGES (All services)
+        // 5. PUSH TO DOCKERHUB (Optional)
         // -----------------------------
         stage('Push to DockerHub') {
+            when { expression { !params.SKIP_PUSH } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh "echo \$PASS | docker login -u \$USER --password-stdin"
+                    sh 'echo $PASS | docker login -u $USER --password-stdin'
                     
                     script {
-                        for (service in env.ALL_SERVICES.tokenize(',')) {
+                        def services = env.ALL_SERVICES_LIST?.split(',') ?: []
+                        for (service in services) {
                             sh "docker push ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}"
                         }
                     }
@@ -156,15 +163,16 @@ pipeline {
         }
 
         // -----------------------------
-        // 6. UPDATE K8s MANIFESTS (ArgoCD)
+        // 6. UPDATE K8s MANIFESTS
         // -----------------------------
         stage('Update Kubernetes Manifests') {
             steps {
                 script {
-                    for (service in env.ALL_SERVICES.tokenize(',')) {
+                    def services = env.ALL_SERVICES_LIST?.split(',') ?: []
+                    for (service in services) {
                         sh """
                         sed -i 's|image: .*${service}:.*|image: ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}|g' \\
-                            kubernetes-manifests/${service}.yaml 2>/dev/null || echo "⚠️ No manifest for ${service}"
+                            kubernetes-manifests/${service}.yaml 2>/dev/null || echo "⚠️ No manifest: ${service}"
                         """
                     }
                 }
@@ -172,9 +180,10 @@ pipeline {
         }
 
         // -----------------------------
-        // 7. PUSH MANIFEST CHANGES
+        // 7. PUSH MANIFESTS TO GITHUB
         // -----------------------------
         stage('Push Manifests to GitHub') {
+            when { expression { !params.SKIP_PUSH } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'github-id', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                     sh """
@@ -182,7 +191,7 @@ pipeline {
                     git config user.email "muskanpatel914@gmail.com"
                     
                     git add kubernetes-manifests/ || true
-                    git commit -m "chore: update image tags to ${IMAGE_TAG}" --allow-empty
+                    git commit -m "chore: update tags to ${IMAGE_TAG}" --allow-empty
                     git push https://\$USER:\$PASS@github.com/muskan7860/microservices-demo.git main
                     """
                 }
@@ -191,20 +200,15 @@ pipeline {
     }
 
     post {
-        // 🧹 Always clean up to save disk space
         always {
             sh '''
-            echo "🧹 Cleaning up Docker images to save space..."
-            docker images "${DOCKERHUB_REPO}/*:${IMAGE_TAG}" --format "{{.Repository}}:{{.Tag}}" | xargs -r docker rmi || true
+            echo "🧹 Cleaning up..."
+            docker images "${DOCKERHUB_REPO}/*:${IMAGE_TAG}" --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | xargs -r docker rmi || true
             rm -rf /tmp/trivy-cache/* 2>/dev/null || true
             '''
-            // 📊 Optional: Archive Trivy reports for audit
-            // archiveArtifacts artifacts: '**/trivy-report.json', allowEmptyArchive: true
         }
-        // 🚨 Alert on failure
         failure {
-            echo "❌ Pipeline failed at stage: ${currentBuild.currentStage?.name ?: 'unknown'}"
-            // Add notification here: slackSend, email, etc.
+            echo "❌ Pipeline failed at: ${currentBuild.currentStage?.name ?: 'unknown'}"
         }
     }
 }
