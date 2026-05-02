@@ -60,7 +60,7 @@ pipeline {
                 script {
                     def services = [
                         "frontend",
-                        "cartservice",
+                        "cartservice/src",
                         "productcatalogservice",
                         "paymentservice",
                         "shippingservice",
