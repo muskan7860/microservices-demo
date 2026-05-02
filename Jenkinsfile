@@ -71,15 +71,15 @@ pipeline {
                         "adservice"
                     ]
 
-                    for (service in services) {
-                      def context = (service == "cartservice")
-                          ? "./src/cartservice/src" 
-                          : "./src/${service}"
+                    for (service in services) {  
+                      def context = service == "cartservice/src" ? "./src/cartservice/src" : "./src/${service}"
+                      def imageName = service.contains("cartservice") ? "cartservice" : service
 
-                       sh """
-                       echo "Building ${service} from ${context}"
-                       docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ${context}
-                       """
+                      sh """
+                      echo "Building ${imageName} from ${context}"
+                      docker build -t ${DOCKERHUB_REPO}/${imageName}:${IMAGE_TAG} ${context}
+                      """
+}
                     }
                 }
             }
