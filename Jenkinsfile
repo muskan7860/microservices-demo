@@ -74,19 +74,36 @@ pipeline {
         }
 
         stage('Update Kubernetes Manifests') {
-            steps {
-                script {
-                    def services = [
-                        'frontend', 'cartservice', 'productcatalogservice',
-                        'paymentservice', 'shippingservice', 'currencyservice',
-                        'emailservice', 'recommendationservice', 'checkoutservice', 'adservice'
-                    ]
-                    for (service in services) {
-                        sh "sed -i 's|image: .*${service}:.*|image: ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}|g' kubernetes-manifests/${service}.yaml 2>/dev/null || true"
-                    }
-                }
+          steps {
+            script {
+              def services = [
+                'frontend', 'cartservice', 'productcatalogservice',
+                'paymentservice', 'shippingservice', 'currencyservice',
+                'emailservice', 'recommendationservice', 'checkoutservice', 'adservice'
+              ]
+            
+              for (service in services) {
+                def manifest = "kubernetes-manifests/${service}.yaml"
+                
+                // ✅ Debug: Show before state
+                sh "echo '📄 Before: $(grep \"image:\" ${manifest} 2>/dev/null || echo \"file not found\")'"
+                
+                // ✅ Precise sed replacement with proper quoting
+                sh """
+                if [ -f "${manifest}" ]; then
+                    sed -i "s|image: ${DOCKERHUB_REPO}/${service}:.*|image: ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}|g" "${manifest}"
+                    echo "✅ Updated ${manifest}"
+                else
+                    echo "⚠️ Manifest not found: ${manifest}"
+                fi
+                """
+                
+                // ✅ Debug: Show after state
+                sh "echo '📄 After: $(grep \"image:\" ${manifest} 2>/dev/null || echo \"file not found\")'"
             }
         }
+    }
+}
 
         stage('Push Manifests to GitHub') {
             steps {
