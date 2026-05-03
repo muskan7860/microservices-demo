@@ -21,7 +21,6 @@ pipeline {
                         'paymentservice', 'shippingservice', 'currencyservice',
                         'emailservice', 'recommendationservice', 'checkoutservice', 'adservice'
                     ]
-                    
                     for (service in services) {
                         def context = (service == 'cartservice') ? './src/cartservice/src' : "./src/${service}"
                         sh "docker build -t ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG} ${context}"
@@ -35,15 +34,9 @@ pipeline {
                 script {
                     def services = ['cartservice', 'paymentservice', 'frontend']
                     for (service in services) {
-                        sh '''
-                        trivy image \
-                            --severity HIGH,CRITICAL \
-                            --offline-scan \
-                            --scanners vuln \
-                            --timeout 30m \
-                            --exit-code 0 \
-                            muskanpatel71198/''' + "${service}" + ''':''' + "${IMAGE_TAG}" + ''' || true
-                        '''
+                        // Simple concatenation - safe for shell
+                        def image = "${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}"
+                        sh "trivy image --severity HIGH,CRITICAL --offline-scan --scanners vuln --timeout 30m --exit-code 0 ${image} || true"
                     }
                 }
             }
@@ -76,9 +69,12 @@ pipeline {
                         'emailservice', 'recommendationservice', 'checkoutservice', 'adservice'
                     ]
                     for (service in services) {
-                        sh '''
-                        sed -i "s|image: muskanpatel71198/''' + "${service}" + ''':.*|image: muskanpatel71198/''' + "${service}" + ''':''' + "${IMAGE_TAG}" + '''|g" kubernetes-manifests/''' + "${service}" + '''.yaml" || true
-                        '''
+                        // ✅ SAFE: Build command in Groovy, then execute
+                        def manifest = "kubernetes-manifests/${service}.yaml"
+                        def oldPattern = "image: ${DOCKERHUB_REPO}/${service}:.*"
+                        def newImage = "image: ${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}"
+                        // Use single quotes for sed to avoid shell escaping issues
+                        sh "sed -i 's|${oldPattern}|${newImage}|g' ${manifest} || true"
                     }
                 }
             }
@@ -86,6 +82,7 @@ pipeline {
 
         stage('Push Manifests to GitHub') {
             steps {
+                // ✅ Your existing credentials - NO CHANGE NEEDED
                 withCredentials([usernamePassword(credentialsId: 'github-id', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                     sh '''
                     git config user.name "muskan7860"
