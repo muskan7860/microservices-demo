@@ -9,16 +9,27 @@ pipeline {
     }
 
     stages {
-        // ✅✅✅ STAGE 1: CI SKIP CHECK (Prevents Webhook Loops) ✅✅✅
+        // ✅✅✅ STAGE 1: CI SKIP CHECK (Handles [ci skip] AND [ci-skip]) ✅✅✅
         stage('Check for CI Skip') {
             steps {
                 script {
+                    // Get commit message
                     def commitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
                     echo "🔍 Commit message: ${commitMessage}"
-                    if (commitMessage.contains('[ci skip]') || commitMessage.contains('[skip ci]')) {
-                        echo "✅ Found [ci skip] - aborting to prevent loop"
+                    
+                    // ✅ Check for ALL common formats (case-insensitive)
+                    def msgLower = commitMessage.toLowerCase()
+                    def shouldSkip = msgLower.contains('[ci skip]') || 
+                                    msgLower.contains('[ci-skip]') ||
+                                    msgLower.contains('[skip ci]') ||
+                                    msgLower.contains('[skip-ci]')
+                    
+                    if (shouldSkip) {
+                        echo "✅ CI skip directive found - aborting build to prevent loop"
                         currentBuild.result = 'ABORTED'
                         error("Build skipped due to [ci skip] directive")
+                    } else {
+                        echo "✅ No CI skip directive - proceeding with build"
                     }
                 }
             }
@@ -127,7 +138,7 @@ pipeline {
         }
 
         // -----------------------------
-        // STAGE 9: UPDATE KUBERNETES MANIFESTS (FIXED - Simple sed)
+        // STAGE 9: UPDATE KUBERNETES MANIFESTS (Simple sed like coach)
         // -----------------------------
         stage('Update Kubernetes Manifests') {
             steps {
@@ -181,8 +192,8 @@ pipeline {
                         echo "📋 Manifest changes:"
                         git diff kubernetes-manifests/ || true
                         git add kubernetes-manifests/ || true
-                        # ✅ [ci-skip] prevents loop (when combined with CI Skip stage above)
-                        git commit -m "chore: update tags to ${IMAGE_TAG} [ci-skip]" || true
+                        # ✅ Use [ci skip] with SPACE (matches coach's pattern)
+                        git commit -m "chore: update tags to ${IMAGE_TAG} [ci skip]" || true
                         git push https://$USER:$PASS@github.com/muskan7860/microservices-demo.git main || true
                         echo "✅ Manifests pushed to GitHub"
                     fi
