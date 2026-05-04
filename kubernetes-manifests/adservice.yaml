@@ -43,7 +43,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-                image: muskanpatel71198/adservice:v57
+                image: muskanpatel71198/adservice:v59
         ports:
         - containerPort: 9555
         env:
