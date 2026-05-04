@@ -43,7 +43,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: paymentservice
+                image: muskanpatel71198/paymentservice:v55
         ports:
         - containerPort: 50051
         env:

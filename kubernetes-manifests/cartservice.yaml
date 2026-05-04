@@ -43,7 +43,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: cartservice
+                image: muskanpatel71198/cartservice:v55
         ports:
         - containerPort: 7070
         env:

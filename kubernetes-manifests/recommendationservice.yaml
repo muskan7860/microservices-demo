@@ -43,7 +43,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: recommendationservice
+                image: muskanpatel71198/recommendationservice:v55
         ports:
         - containerPort: 8080
         readinessProbe:
