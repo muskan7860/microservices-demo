@@ -43,7 +43,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-                image: muskanpatel71198/currencyservice:v55
+                image: muskanpatel71198/currencyservice:v57
         ports:
         - name: grpc
           containerPort: 7000
