@@ -9,8 +9,23 @@ pipeline {
     }
 
     stages {
+        // ✅✅✅ STAGE 1: CI SKIP CHECK (Prevents Webhook Loops) ✅✅✅
+        stage('Check for CI Skip') {
+            steps {
+                script {
+                    def commitMessage = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    echo "🔍 Commit message: ${commitMessage}"
+                    if (commitMessage.contains('[ci skip]') || commitMessage.contains('[skip ci]')) {
+                        echo "✅ Found [ci skip] - aborting to prevent loop"
+                        currentBuild.result = 'ABORTED'
+                        error("Build skipped due to [ci skip] directive")
+                    }
+                }
+            }
+        }
+
         // -----------------------------
-        // 1. CHECKOUT CODE
+        // STAGE 2: CHECKOUT CODE
         // -----------------------------
         stage('Checkout Code') {
             steps {
@@ -19,18 +34,18 @@ pipeline {
         }
 
         // -----------------------------
-        // 2. SONARQUBE ANALYSIS
+        // STAGE 3: SONARQUBE ANALYSIS
         // -----------------------------
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONARQUBE_SERVER}") {
                     sh """
-                    sonar-scanner \
-                        -Dsonar.projectKey=microservices-app \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=http://192.168.0.101:9000 \
-                        -Dsonar.login=\$SONAR_TOKEN \
-                        -Dsonar.exclusions=**/*.java,**/*.cs,**/node_modules/** \
+                    sonar-scanner \\
+                        -Dsonar.projectKey=microservices-app \\
+                        -Dsonar.sources=. \\
+                        -Dsonar.host.url=http://192.168.0.101:9000 \\
+                        -Dsonar.login=\$SONAR_TOKEN \\
+                        -Dsonar.exclusions=**/*.java,**/*.cs,**/node_modules/** \\
                         -Dsonar.scanner.skipJreProvisioning=true
                     """
                 }
@@ -38,7 +53,7 @@ pipeline {
         }
 
         // -----------------------------
-        // 3. OWASP DEPENDENCY CHECK
+        // STAGE 4: OWASP DEPENDENCY CHECK
         // -----------------------------
         stage('OWASP Dependency Check') {
             steps {
@@ -48,7 +63,7 @@ pipeline {
         }
 
         // -----------------------------
-        // 4. TRIVY FILESYSTEM SCAN
+        // STAGE 5: TRIVY FILESYSTEM SCAN
         // -----------------------------
         stage('Trivy FS Scan') {
             steps {
@@ -57,7 +72,7 @@ pipeline {
         }
 
         // -----------------------------
-        // 5. BUILD DOCKER IMAGES
+        // STAGE 6: BUILD DOCKER IMAGES
         // -----------------------------
         stage('Build Docker Images') {
             steps {
@@ -76,7 +91,7 @@ pipeline {
         }
 
         // -----------------------------
-        // 6. TRIVY IMAGE SCAN
+        // STAGE 7: TRIVY IMAGE SCAN
         // -----------------------------
         stage('Trivy Image Scan') {
             steps {
@@ -91,7 +106,7 @@ pipeline {
         }
 
         // -----------------------------
-        // 7. PUSH TO DOCKERHUB
+        // STAGE 8: PUSH TO DOCKERHUB
         // -----------------------------
         stage('Push to DockerHub') {
             steps {
@@ -112,7 +127,7 @@ pipeline {
         }
 
         // -----------------------------
-        // 8. UPDATE KUBERNETES MANIFESTS (FIXED)
+        // STAGE 9: UPDATE KUBERNETES MANIFESTS (FIXED - Simple sed)
         // -----------------------------
         stage('Update Kubernetes Manifests') {
             steps {
@@ -126,24 +141,19 @@ pipeline {
                         def manifest = "kubernetes-manifests/${service}.yaml"
                         def newImage = "${DOCKERHUB_REPO}/${service}:${IMAGE_TAG}"
                         
-                        // ✅ ROBUST: Use awk to update YAML regardless of indentation
                         sh """
                         if [ -f "${manifest}" ]; then
-                            # Show before
-                            echo "📄 Before ${service}: \$(grep 'image:' ${manifest} | head -1)"
+                            echo "📄 Updating ${manifest}"
                             
-                            # Update using awk (handles any indentation/spaces)
-                            awk -v newimg="${newImage}" '/image:.*${service}/ {sub(/image:.*/, "        image: " newimg)} 1' ${manifest} > ${manifest}.tmp && mv ${manifest}.tmp ${manifest}
+                            # ✅ Simple sed pattern (like coach's approach)
+                            sed -i "s|image: ${DOCKERHUB_REPO}/${service}:.*|image: ${newImage}|g" "${manifest}"
                             
-                            # Show after
-                            echo "📄 After ${service}: \$(grep 'image:' ${manifest} | head -1)"
-                            
-                            # Verify
-                            if grep -q "${IMAGE_TAG}" "${manifest}"; then
+                            # ✅ Verify the change worked
+                            if grep -q "${newImage}" "${manifest}"; then
                                 echo "✅ ${service} updated to ${IMAGE_TAG}"
                             else
-                                echo "⚠️ ${service} update may have failed - checking file..."
-                                cat "${manifest}" | grep -A2 -B2 image || true
+                                echo "⚠️ ${service} may not have updated:"
+                                grep "image:" "${manifest}" || true
                             fi
                         else
                             echo "⚠️ Manifest not found: ${manifest}"
@@ -155,7 +165,7 @@ pipeline {
         }
 
         // -----------------------------
-        // 9. PUSH MANIFESTS TO GITHUB
+        // STAGE 10: PUSH MANIFESTS TO GITHUB
         // -----------------------------
         stage('Push Manifests to GitHub') {
             steps {
@@ -164,16 +174,18 @@ pipeline {
                     git config user.name "muskan7860"
                     git config user.email "muskanpatel914@gmail.com"
                     
-                    # Show what changed
-                    echo "📋 Manifest changes:"
-                    git diff kubernetes-manifests/ || true
-                    
-                    git add kubernetes-manifests/ || true
-                    # Use [ci-skip] to prevent webhook loop
-                    git commit -m "chore: update tags to ${IMAGE_TAG} [ci-skip]" --allow-empty || true
-                    git push https://$USER:$PASS@github.com/muskan7860/microservices-demo.git main || true
-                    
-                    echo "✅ Manifests pushed to GitHub"
+                    # Check if there are changes before committing
+                    if git diff --quiet kubernetes-manifests/; then
+                        echo "📋 No manifest changes to commit"
+                    else
+                        echo "📋 Manifest changes:"
+                        git diff kubernetes-manifests/ || true
+                        git add kubernetes-manifests/ || true
+                        # ✅ [ci-skip] prevents loop (when combined with CI Skip stage above)
+                        git commit -m "chore: update tags to ${IMAGE_TAG} [ci-skip]" || true
+                        git push https://$USER:$PASS@github.com/muskan7860/microservices-demo.git main || true
+                        echo "✅ Manifests pushed to GitHub"
+                    fi
                     '''
                 }
             }
@@ -183,9 +195,10 @@ pipeline {
     post {
         always {
             cleanWs()
+            echo "🧹 Workspace cleaned"
         }
         failure {
-            echo "❌ Pipeline failed - check console for details"
+            echo "❌ Pipeline failed at stage: ${currentBuild.currentStage?.name ?: 'unknown'}"
         }
         success {
             echo "🎉 Pipeline completed successfully - version ${IMAGE_TAG}"
