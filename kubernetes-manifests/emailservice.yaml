@@ -44,7 +44,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-                image: muskanpatel71198/emailservice:v59
+                image: muskanpatel71198/emailservice:v61
         ports:
         - containerPort: 8080
         env:

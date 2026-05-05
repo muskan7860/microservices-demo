@@ -43,7 +43,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-                  image: muskanpatel71198/checkoutservice:v59
+                  image: muskanpatel71198/checkoutservice:v61
           ports:
           - containerPort: 5050
           readinessProbe:
