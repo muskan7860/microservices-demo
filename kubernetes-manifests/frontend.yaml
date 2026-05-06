@@ -45,7 +45,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-                  image: muskanpatel71198/frontend:v61
+          image: muskanpatel71198/frontend:v61
           ports:
           - containerPort: 8080
           readinessProbe:
