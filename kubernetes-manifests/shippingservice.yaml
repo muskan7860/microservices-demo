@@ -43,7 +43,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-                image: muskanpatel71198/shippingservice:v61
+        image: muskanpatel71198/shippingservice:v61
         ports:
         - containerPort: 50051
         env:
