@@ -53,7 +53,9 @@ spec:
         - name: DISABLE_PROFILER
           value: "1"
         - name: SMTP_HOST
-          value: "smtp.example.com" 
+          value: "smtp.example.com"
+        - name: EMAIL_ENABLED
+          value: "false" 
         readinessProbe:
           periodSeconds: 5
           grpc:
