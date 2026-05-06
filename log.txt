@@ -1,0 +1,262 @@
+status:
+  conditions:
+  - lastTransitionTime: "2026-05-06T06:22:42Z"
+    message: 'Failed last sync attempt to [8fabf4870a0a8327e9bb5324c401e48ad2937c44]:
+      one or more synchronization tasks are not valid'
+    type: SyncError
+  controllerNamespace: argocd
+  health:
+    lastTransitionTime: "2026-05-06T05:39:59Z"
+    status: Missing
+  operationState:
+    finishedAt: "2026-05-06T06:22:41Z"
+    message: one or more synchronization tasks are not valid
+    operation:
+      initiatedBy:
+        username: admin
+      retry: {}
+      sync:
+        revision: 8fabf4870a0a8327e9bb5324c401e48ad2937c44
+        source:
+          directory:
+            exclude: Kustomize
+            jsonnet: {}
+          path: kubernetes-manifests
+          repoURL: https://github.com/muskan7860/microservices-demo.git
+          targetRevision: main
+        syncStrategy:
+          hook: {}
+    phase: Failed
+    startedAt: "2026-05-06T06:22:41Z"
+    syncResult:
+      resources:
+      - group: kustomize.config.k8s.io
+        kind: Kustomization
+        message: The Kubernetes API could not find kustomize.config.k8s.io/Kustomization
+          for requested resource micro-app/. Make sure the "Kustomization" CRD is
+          installed on the destination cluster.
+        name: ""
+        namespace: micro-app
+        status: SyncFailed
+        syncPhase: Sync
+        version: v1beta1
+      revision: 8fabf4870a0a8327e9bb5324c401e48ad2937c44
+      source:
+        directory:
+          exclude: Kustomize
+          jsonnet: {}
+        path: kubernetes-manifests
+        repoURL: https://github.com/muskan7860/microservices-demo.git
+        targetRevision: main
+  reconciledAt: "2026-05-06T06:22:41Z"
+  resourceHealthSource: appTree
+  resources:
+  - kind: Service
+    name: adservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: cartservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: checkoutservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: currencyservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: emailservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: frontend
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: frontend-external
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: paymentservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: productcatalogservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: recommendationservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: redis-cart
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: Service
+    name: shippingservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: adservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: cartservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: checkoutservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: currencyservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: emailservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: frontend
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: loadgenerator
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: paymentservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: productcatalogservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: recommendationservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - kind: ServiceAccount
+    name: shippingservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: adservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: cartservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: checkoutservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: currencyservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: emailservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: frontend
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: loadgenerator
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: paymentservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: productcatalogservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: recommendationservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: redis-cart
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: shippingservice
+    namespace: micro-app
+    status: OutOfSync
+    version: v1
+  - group: kustomize.config.k8s.io
+    kind: Kustomization
+    namespace: micro-app
+    status: OutOfSync
+    version: v1beta1
+  sourceHydrator: {}
+  sourceType: Directory
+  summary: {}
+  sync:
+    comparedTo:
+      destination:
+        namespace: micro-app
+        server: https://kubernetes.default.svc
+      source:
+        directory:
+          exclude: Kustomize
+          jsonnet: {}
+        path: kubernetes-manifests
+        repoURL: https://github.com/muskan7860/microservices-demo.git
+        targetRevision: main
+    revision: 8fabf4870a0a8327e9bb5324c401e48ad2937c44
+    status: OutOfSync
